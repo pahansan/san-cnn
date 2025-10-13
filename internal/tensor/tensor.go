@@ -1,26 +1,26 @@
 package tensor
 
+type TensorSize struct {
+	Depth  int
+	Height int
+	Width  int
+}
+
 type Tensor struct {
-	depth  int
-	height int
-	width  int
+	size   TensorSize
 	dw     int
 	Values []float64
 }
 
-func NewTensor(depth, height, width int) Tensor {
+func NewTensor(size TensorSize) Tensor {
 	return Tensor{
-		depth:  depth,
-		height: height,
-		width:  width,
-		dw:     depth * width,
-		Values: make([]float64, depth*height*width),
+		size:   size,
+		dw:     size.Depth * size.Width,
+		Values: make([]float64, size.Depth*size.Height*size.Width),
 	}
 }
 
-func (t *Tensor) GetValue(d, i, j int) float64        { return t.Values[i*t.dw+j*t.depth+d] }
-func (t *Tensor) SetValue(d, i, j int, value float64) { t.Values[i*t.dw+j*t.depth+d] = value }
-func (t *Tensor) GetValuePtr(d, i, j int) *float64    { return &t.Values[i*t.dw+j*t.depth+d] }
-func (t *Tensor) GetDepth() int                       { return t.depth }
-func (t *Tensor) GetHeight() int                      { return t.height }
-func (t *Tensor) GetWidth() int                       { return t.width }
+func (t *Tensor) GetValue(d, i, j int) float64        { return t.Values[i*t.dw+j*t.size.Depth+d] }
+func (t *Tensor) SetValue(d, i, j int, value float64) { t.Values[i*t.dw+j*t.size.Depth+d] = value }
+func (t *Tensor) GetValuePtr(d, i, j int) *float64    { return &t.Values[i*t.dw+j*t.size.Depth+d] }
+func (t *Tensor) GetSize() TensorSize                 { return t.size }
