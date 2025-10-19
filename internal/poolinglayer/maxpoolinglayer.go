@@ -5,7 +5,7 @@ import "san-cnn/internal/tensor"
 type MaxPoolingLayer struct {
 	scale      int
 	inputSize  tensor.TensorSize
-	outputSize tensor.TensorSize
+	OutputSize tensor.TensorSize
 	mask       tensor.Tensor
 }
 
@@ -13,16 +13,17 @@ func NewMaxPoolingLayer(size tensor.TensorSize, scale int) MaxPoolingLayer {
 	return MaxPoolingLayer{
 		scale:     scale,
 		inputSize: size,
-		outputSize: tensor.TensorSize{
+		OutputSize: tensor.TensorSize{
 			Width:  size.Width / scale,
 			Height: size.Height / scale,
 			Depth:  size.Depth,
 		},
+		mask: tensor.NewTensor(size),
 	}
 }
 
 func (l *MaxPoolingLayer) Forward(X tensor.Tensor) tensor.Tensor {
-	output := tensor.NewTensor(l.outputSize)
+	output := tensor.NewTensor(l.OutputSize)
 
 	for d := 0; d < l.inputSize.Depth; d++ {
 		for i := 0; i < l.inputSize.Height; i += l.scale {

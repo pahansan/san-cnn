@@ -16,9 +16,9 @@ func (l *ReLULayer) Forward(X tensor.Tensor) tensor.Tensor {
 	for i := 0; i < l.size.Height; i++ {
 		for j := 0; j < l.size.Width; j++ {
 			for k := 0; k < l.size.Depth; k++ {
-				xValuePtr := X.GetValuePtr(k, i, j)
-				if *xValuePtr > 0 {
-					output.SetValue(k, i, j, *xValuePtr)
+				value := X.GetValue(k, i, j)
+				if value > 0 {
+					output.SetValue(k, i, j, value)
 				} else {
 					output.SetValue(k, i, j, 0)
 				}

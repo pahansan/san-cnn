@@ -67,13 +67,13 @@ func (l *ConvLayer) Forward(X tensor.Tensor) tensor.Tensor {
 
 	for f := 0; f < l.Fc; f++ {
 		for y := 0; y < l.OutputSize.Height; y++ {
-			for x := 0; x < l.InputSize.Width; x++ {
+			for x := 0; x < l.OutputSize.Width; x++ {
 				sum := l.B[f]
 
 				for i := 0; i < l.Fs; i++ {
 					for j := 0; j < l.Fs; j++ {
 						i0 := l.S*y + i - l.P
-						j0 := l.S*y + j - l.P
+						j0 := l.S*x + j - l.P
 
 						if i0 < 0 || i0 >= l.InputSize.Height || j0 < 0 || j0 >= l.InputSize.Width {
 							continue
