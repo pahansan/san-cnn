@@ -1,11 +1,3 @@
-// Full project: go-cnn-lenet5
-// Single-file self-contained example implementing a small CNN library
-// and LeNet-5 architecture using only Go standard library.
-// Save as: go-cnn-lenet5.go
-// Build: go run go-cnn-lenet5.go
-// Note: This is a pedagogical, straightforward implementation (naive loops),
-// intended for learning and experimentation — not optimized for production.
-
 package main
 
 import (
@@ -16,14 +8,8 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
-	"time"
 )
 
-// ------------------------
-// Basic tensor helpers
-// ------------------------
-
-// A simple 3D tensor stored as flat slice in CHW order (channels, height, width)
 type Tensor struct {
 	C, H, W int
 	Data    []float64
@@ -46,28 +32,21 @@ func RandTensor(c, h, w int, scale float64) *Tensor {
 
 func ZerosLike(t *Tensor) *Tensor { return NewTensor(t.C, t.H, t.W) }
 
-// Flatten tensor to vector
 func (t *Tensor) Flatten() []float64 {
 	out := make([]float64, len(t.Data))
 	copy(out, t.Data)
 	return out
 }
 
-// ------------------------
-// Layers (interfaces)
-// ------------------------
-
 type Layer interface {
 	Forward(input *Tensor) (*Tensor, error)
-	Backward(dout *Tensor) (*Tensor, error) // returns gradient wrt input
+	Backward(dout *Tensor) (*Tensor, error)
 	Params() []*Param
 }
 
-// Param wraps a trainable parameter
 type Param struct {
-	Val   []float64
-	Grad  []float64
-	Shape []int // for reference
+	Val  []float64
+	Grad []float64
 }
 
 func NewParam(n int) *Param {
@@ -75,14 +54,10 @@ func NewParam(n int) *Param {
 	return p
 }
 
-// ------------------------
-// Conv2D layer (valid padding, stride 1)
-// ------------------------
-
 type Conv2D struct {
 	InC, OutC, K int
-	W            *Param // shape OutC x InC x K x K stored flat
-	B            *Param // shape OutC
+	W            *Param
+	B            *Param
 
 	lastInput *Tensor
 }
@@ -90,7 +65,6 @@ type Conv2D struct {
 func NewConv2D(inC, outC, k int) *Conv2D {
 	n := outC * inC * k * k
 	w := NewParam(n)
-	// Xavier init
 	scale := math.Sqrt(2.0 / float64(inC*k*k))
 	for i := range w.Val {
 		w.Val[i] = rand.NormFloat64() * scale
@@ -113,7 +87,6 @@ func (c *Conv2D) Forward(input *Tensor) (*Tensor, error) {
 		for y := 0; y < h; y++ {
 			for x := 0; x < w; x++ {
 				var sum float64 = 0
-				// kernel over in channels
 				for ic := 0; ic < c.InC; ic++ {
 					for ky := 0; ky < c.K; ky++ {
 						for kx := 0; kx < c.K; kx++ {
@@ -136,18 +109,14 @@ func (c *Conv2D) Backward(dout *Tensor) (*Tensor, error) {
 	if in == nil {
 		return nil, errors.New("conv backward called before forward")
 	}
-	// dims
 	hout := dout.H
 	wout := dout.W
-	// init grads
-	// zero grads
 	for i := range c.W.Grad {
 		c.W.Grad[i] = 0
 	}
 	for i := range c.B.Grad {
 		c.B.Grad[i] = 0
 	}
-	// grad wrt input
 	dx := ZerosLike(in)
 	for oc := 0; oc < c.OutC; oc++ {
 		for y := 0; y < hout; y++ {
@@ -169,10 +138,6 @@ func (c *Conv2D) Backward(dout *Tensor) (*Tensor, error) {
 	}
 	return dx, nil
 }
-
-// ------------------------
-// Average Pooling (2x2, stride 2)
-// ------------------------
 
 type AvgPool2 struct {
 	Kernel    int
@@ -229,10 +194,6 @@ func (p *AvgPool2) Backward(dout *Tensor) (*Tensor, error) {
 	return dx, nil
 }
 
-// ------------------------
-// ReLU
-// ------------------------
-
 type ReLU struct{ last *Tensor }
 
 func NewReLU() *ReLU             { return &ReLU{} }
@@ -267,10 +228,6 @@ func (r *ReLU) Backward(dout *Tensor) (*Tensor, error) {
 	return dx, nil
 }
 
-// ------------------------
-// Flatten
-// ------------------------
-
 type Flatten struct{ inShape [3]int }
 
 func NewFlatten() *Flatten          { return &Flatten{} }
@@ -278,7 +235,6 @@ func (f *Flatten) Params() []*Param { return nil }
 
 func (f *Flatten) Forward(input *Tensor) (*Tensor, error) {
 	f.inShape = [3]int{input.C, input.H, input.W}
-	// represent flattened as C=1, H=1, W=N for simplicity
 	out := NewTensor(1, 1, len(input.Data))
 	copy(out.Data, input.Data)
 	return out, nil
@@ -294,14 +250,10 @@ func (f *Flatten) Backward(dout *Tensor) (*Tensor, error) {
 	return out, nil
 }
 
-// ------------------------
-// Dense layer
-// ------------------------
-
 type Dense struct {
 	In, Out   int
-	W         *Param // Out x In
-	B         *Param // Out
+	W         *Param
+	B         *Param
 	lastInput []float64
 }
 
@@ -318,7 +270,6 @@ func NewDense(in, out int) *Dense {
 func (d *Dense) Params() []*Param { return []*Param{d.W, d.B} }
 
 func (d *Dense) Forward(input *Tensor) (*Tensor, error) {
-	// input is vector in Data
 	vec := input.Data
 	if len(vec) != d.In {
 		return nil, errors.New("dense forward size mismatch")
@@ -340,7 +291,6 @@ func (d *Dense) Backward(dout *Tensor) (*Tensor, error) {
 	if len(dout.Data) != d.Out {
 		return nil, errors.New("dense backward size mismatch")
 	}
-	// zero grads
 	for i := range d.W.Grad {
 		d.W.Grad[i] = 0
 	}
@@ -350,13 +300,11 @@ func (d *Dense) Backward(dout *Tensor) (*Tensor, error) {
 	for j := 0; j < d.Out; j++ {
 		d.B.Grad[j] += dout.Data[j]
 	}
-	// W grads
 	for j := 0; j < d.Out; j++ {
 		for i := 0; i < d.In; i++ {
 			d.W.Grad[j*d.In+i] += dout.Data[j] * d.lastInput[i]
 		}
 	}
-	// dx
 	dx := NewTensor(1, 1, d.In)
 	for i := 0; i < d.In; i++ {
 		var s float64
@@ -368,17 +316,11 @@ func (d *Dense) Backward(dout *Tensor) (*Tensor, error) {
 	return dx, nil
 }
 
-// ------------------------
-// Softmax + CrossEntropy Loss (combined)
-// expects logits tensor (1x1xN) and label int
-// ------------------------
-
 func SoftmaxCrossEntropyLoss(logits *Tensor, label int) (float64, *Tensor, error) {
 	N := logits.W
 	if label < 0 || label >= N {
 		return 0, nil, errors.New("label out of range")
 	}
-	// numerically stable softmax
 	max := logits.Data[0]
 	for i := 1; i < N; i++ {
 		if logits.Data[i] > max {
@@ -395,7 +337,6 @@ func SoftmaxCrossEntropyLoss(logits *Tensor, label int) (float64, *Tensor, error
 		exps[i] /= sum
 	}
 	loss := -math.Log(exps[label] + 1e-15)
-	// gradient wrt logits
 	dlogits := NewTensor(1, 1, N)
 	for i := 0; i < N; i++ {
 		dlogits.Data[i] = exps[i]
@@ -403,10 +344,6 @@ func SoftmaxCrossEntropyLoss(logits *Tensor, label int) (float64, *Tensor, error
 	dlogits.Data[label] -= 1
 	return loss, dlogits, nil
 }
-
-// ------------------------
-// Simple sequential network container
-// ------------------------
 
 type Sequential struct {
 	Layers []Layer
@@ -429,7 +366,6 @@ func (s *Sequential) Forward(input *Tensor) (*Tensor, error) {
 func (s *Sequential) Backward(dout *Tensor) error {
 	d := dout
 	var err error
-	// iterate layers in reverse
 	for i := len(s.Layers) - 1; i >= 0; i-- {
 		d, err = s.Layers[i].Backward(d)
 		if err != nil {
@@ -447,10 +383,6 @@ func (s *Sequential) Params() []*Param {
 	return ps
 }
 
-// ------------------------
-// Simple SGD optimizer
-// ------------------------
-
 type SGD struct{ LR float64 }
 
 func (opt *SGD) Step(params []*Param) {
@@ -461,15 +393,6 @@ func (opt *SGD) Step(params []*Param) {
 	}
 }
 
-// ------------------------
-// LeNet-5 constructor
-// Input assumed 1x32x32 (MNIST can be zero-padded to 32x32)
-// Architecture (simplified):
-// C1: conv(6,5x5) -> ReLU -> A2: avgpool 2x2
-// C3: conv(16,5x5) -> ReLU -> A4: avgpool 2x2
-// Flatten -> FC5: 120 -> ReLU -> FC6: 84 -> ReLU -> Output: 10
-// ------------------------
-
 func NewLeNet5() *Sequential {
 	c1 := NewConv2D(1, 6, 5)
 	r1 := NewReLU()
@@ -478,19 +401,13 @@ func NewLeNet5() *Sequential {
 	r3 := NewReLU()
 	p4 := NewAvgPool2()
 	f := NewFlatten()
-	fc5 := NewDense(16*5*5, 120) // after two pools: 32->28 (conv)->14(pool)->10(conv)->5(pool) => 5x5
+	fc5 := NewDense(16*5*5, 120)
 	r5 := NewReLU()
 	fc6 := NewDense(120, 84)
 	r6 := NewReLU()
 	out := NewDense(84, 10)
 	return NewSequential(c1, r1, p2, c3, r3, p4, f, fc5, r5, fc6, r6, out)
 }
-
-// ------------------------
-// Utilities: load MNIST-like CSV (label, pixels...)
-// For convenience, support CSV with header where each row: label,p0,p1,...pN
-// where pixels are 0..255
-// ------------------------
 
 func LoadCSVImages(path string) (images []*Tensor, labels []int, err error) {
 	f, err := os.Open(path)
@@ -516,9 +433,7 @@ func LoadCSVImages(path string) (images []*Tensor, labels []int, err error) {
 			v, _ := strconv.ParseFloat(rec[i], 64)
 			pix[i-1] = v / 255.0
 		}
-		// assume square image
 		sz := int(math.Sqrt(float64(len(pix))))
-		// pad to 32x32 if needed
 		img := NewTensor(1, 32, 32)
 		for y := 0; y < sz; y++ {
 			for x := 0; x < sz; x++ {
@@ -535,11 +450,9 @@ func LoadCSVImages(path string) (images []*Tensor, labels []int, err error) {
 }
 
 func validate(data []*Tensor, ans []int, model *Sequential) float64 {
-	// validation
 	correct := 0
 	for i := range data {
 		out, _ := model.Forward(data[i])
-		// pick max logit
 		pred := 0
 		max := out.Data[0]
 		for j, v := range out.Data {
@@ -555,12 +468,15 @@ func validate(data []*Tensor, ans []int, model *Sequential) float64 {
 	return float64(correct) / float64(len(data)) * 100
 }
 
-// ------------------------
-// Training example (toy)
-// ------------------------
+func shuffle(data []*Tensor, ans []int) {
+	for i := range data {
+		j := rand.Intn(len(data))
+		data[i], data[j] = data[j], data[i]
+		ans[i], ans[j] = ans[j], ans[i]
+	}
+}
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
 	fmt.Println("Loading MNIST train data...")
 	trainImages, trainLabels, err := LoadCSVImages("mnist_train.csv")
 	if err != nil {
@@ -574,60 +490,41 @@ func main() {
 
 	net := NewLeNet5()
 	opt := &SGD{LR: 0.01}
-	targetAcc := 99.0
+	targetAcc := 90.0
 	accuracy := 0.0
 	epoch := 0
 
-	for accuracy < targetAcc {
-		epoch++
-		fmt.Printf("Epoch %d\n", epoch)
-		// shuffle training data
-		for i := range trainImages {
-			j := rand.Intn(len(trainImages))
-			trainImages[i], trainImages[j] = trainImages[j], trainImages[i]
-			trainLabels[i], trainLabels[j] = trainLabels[j], trainLabels[i]
-		}
+	file, _ := os.Create("data.txt")
+	defer file.Close()
 
-		// train on all examples
+	fmt.Println("Train...")
+	for accuracy < targetAcc {
+		shuffle(trainImages, trainLabels)
+
 		for i := range trainImages {
-			// forward
 			out, err := net.Forward(trainImages[i])
 			if err != nil {
 				panic(err)
 			}
-			// loss + gradient
-			_, dlogits, _ := SoftmaxCrossEntropyLoss(out, trainLabels[i])
-			// backward
+
+			loss, dlogits, _ := SoftmaxCrossEntropyLoss(out, trainLabels[i])
+
 			err = net.Backward(dlogits)
 			if err != nil {
 				panic(err)
 			}
-			// SGD step
-			opt.Step(net.Params())
-			if i%10000 == 0 {
-				fmt.Printf("Iteration number: %d, Validation accuracy: %.2f%%\n", i, validate(testImages, testLabels, net))
-			}
-		}
 
-		// validation
-		correct := 0
-		for i := range testImages {
-			out, _ := net.Forward(testImages[i])
-			// pick max logit
-			pred := 0
-			max := out.Data[0]
-			for j, v := range out.Data {
-				if v > max {
-					max = v
-					pred = j
+			opt.Step(net.Params())
+			if i%100 == 0 {
+				accuracy = validate(testImages, testLabels, net)
+				fmt.Printf("Iteration: %d Cost: %f Accuracy: %.2f %%\n", i+epoch*60000, loss, accuracy)
+				file.Write([]byte(fmt.Sprintf("Iteration: %d Cost: %f Accuracy: %.2f %%\n", i+epoch*60000, loss, accuracy)))
+				if accuracy >= targetAcc {
+					break
 				}
 			}
-			if pred == testLabels[i] {
-				correct++
-			}
 		}
-		accuracy = float64(correct) / float64(len(testImages)) * 100
-		fmt.Printf("Validation accuracy: %.2f%%\n", accuracy)
+		epoch++
 	}
 	fmt.Println("Training complete. Target accuracy reached.")
 }
