@@ -490,7 +490,7 @@ func main() {
 
 	net := NewLeNet5()
 	opt := &SGD{LR: 0.01}
-	targetAcc := 98.0
+	targetAcc := 90.0
 	accuracy := 0.0
 	epoch := 0
 
@@ -498,6 +498,8 @@ func main() {
 	defer file.Close()
 
 	fmt.Println("Train...")
+	avgLoss := 0.0
+	nSteps := 100
 	for accuracy < targetAcc {
 		shuffle(trainImages, trainLabels)
 
@@ -508,17 +510,18 @@ func main() {
 			}
 
 			loss, dlogits, _ := SoftmaxCrossEntropyLoss(out, trainLabels[i])
-
+			avgLoss += loss
 			err = net.Backward(dlogits)
 			if err != nil {
 				panic(err)
 			}
 
 			opt.Step(net.Params())
-			if i%1000 == 0 {
+			if i%nSteps == 0 {
 				accuracy = validate(testImages, testLabels, net)
-				fmt.Printf("Iteration: %d Cost: %f Accuracy: %.2f %%\n", i+epoch*60000, loss, accuracy)
-				file.Write([]byte(fmt.Sprintf("%d %f %.2f\n", i+epoch*60000, loss, accuracy)))
+				fmt.Printf("Iteration: %d Cost: %f Accuracy: %.2f %%\n", i+epoch*60000, avgLoss/float64(nSteps), accuracy)
+				file.Write([]byte(fmt.Sprintf("%d %1.15f %.2f\n", i+epoch*60000, avgLoss/float64(nSteps), accuracy)))
+				avgLoss = 0
 				if accuracy >= targetAcc {
 					break
 				}
