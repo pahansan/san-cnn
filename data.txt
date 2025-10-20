@@ -1,20 +1,20 @@
-Iteration: 0 Cost: 2.730788 Accuracy: 19.15 %
-Iteration: 100 Cost: 2.224968 Accuracy: 18.92 %
-Iteration: 200 Cost: 1.746127 Accuracy: 58.27 %
-Iteration: 300 Cost: 0.675624 Accuracy: 42.67 %
-Iteration: 400 Cost: 0.150374 Accuracy: 72.54 %
-Iteration: 500 Cost: 0.004988 Accuracy: 62.88 %
-Iteration: 600 Cost: 0.177829 Accuracy: 79.37 %
-Iteration: 700 Cost: 0.736933 Accuracy: 76.39 %
-Iteration: 800 Cost: 0.034117 Accuracy: 79.56 %
-Iteration: 900 Cost: 0.118866 Accuracy: 74.99 %
-Iteration: 1000 Cost: 0.075199 Accuracy: 85.76 %
-Iteration: 1100 Cost: 0.095884 Accuracy: 84.90 %
-Iteration: 1200 Cost: 0.007963 Accuracy: 85.91 %
-Iteration: 1300 Cost: 0.233982 Accuracy: 80.31 %
-Iteration: 1400 Cost: 0.023631 Accuracy: 89.57 %
-Iteration: 1500 Cost: 1.500902 Accuracy: 88.51 %
-Iteration: 1600 Cost: 0.358780 Accuracy: 85.42 %
-Iteration: 1700 Cost: 1.339933 Accuracy: 79.01 %
-Iteration: 1800 Cost: 0.227448 Accuracy: 88.24 %
-Iteration: 1900 Cost: 0.006138 Accuracy: 90.61 %
+0 2.730788 19.15
+100 2.224968 18.92
+200 1.746127 58.27
+300 0.675624 42.67
+400 0.150374 72.54
+500 0.004988 62.88
+600 0.177829 79.37
+700 0.736933 76.39
+800 0.034117 79.56
+900 0.118866 74.99
+1000 0.075199 85.76
+1100 0.095884 84.90
+1200 0.007963 85.91
+1300 0.233982 80.31
+1400 0.023631 89.57
+1500 1.500902 88.51
+1600 0.358780 85.42
+1700 1.339933 79.01
+1800 0.227448 88.24
+1900 0.006138 90.61

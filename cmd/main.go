@@ -518,7 +518,7 @@ func main() {
 			if i%100 == 0 {
 				accuracy = validate(testImages, testLabels, net)
 				fmt.Printf("Iteration: %d Cost: %f Accuracy: %.2f %%\n", i+epoch*60000, loss, accuracy)
-				file.Write([]byte(fmt.Sprintf("Iteration: %d Cost: %f Accuracy: %.2f %%\n", i+epoch*60000, loss, accuracy)))
+				file.Write([]byte(fmt.Sprintf("%d %f %.2f %%\n", i+epoch*60000, loss, accuracy)))
 				if accuracy >= targetAcc {
 					break
 				}
