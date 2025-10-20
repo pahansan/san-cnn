@@ -490,7 +490,7 @@ func main() {
 
 	net := NewLeNet5()
 	opt := &SGD{LR: 0.01}
-	targetAcc := 90.0
+	targetAcc := 98.0
 	accuracy := 0.0
 	epoch := 0
 
@@ -515,10 +515,10 @@ func main() {
 			}
 
 			opt.Step(net.Params())
-			if i%100 == 0 {
+			if i%1000 == 0 {
 				accuracy = validate(testImages, testLabels, net)
 				fmt.Printf("Iteration: %d Cost: %f Accuracy: %.2f %%\n", i+epoch*60000, loss, accuracy)
-				file.Write([]byte(fmt.Sprintf("%d %f %.2f %%\n", i+epoch*60000, loss, accuracy)))
+				file.Write([]byte(fmt.Sprintf("%d %f %.2f\n", i+epoch*60000, loss, accuracy)))
 				if accuracy >= targetAcc {
 					break
 				}
