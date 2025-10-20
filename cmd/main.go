@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"san-cnn/internal/nn"
+	"san-cnn/internal/parser"
 	"san-cnn/internal/tensor"
 )
 
@@ -18,28 +19,72 @@ func mseLoss(pred, target tensor.Tensor) (float64, tensor.Tensor) {
 	return loss / float64(pred.GetSize().Depth), grad
 }
 
-func main() {
-	net := nn.NewLeNet5(tensor.TensorSize{Depth: 1, Height: 28, Width: 28})
-
-	X := tensor.NewTensor(tensor.TensorSize{Depth: 1, Height: 28, Width: 28})
-	for i := 0; i < 28; i++ {
-		for j := 0; j < 28; j++ {
-			X.SetValue(0, i, j, rand.Float64())
+func maxIndex(t tensor.Tensor) int {
+	max := 0.0
+	var idx int
+	for i := 0; i < t.GetSize().Depth; i++ {
+		value := t.GetValue(i, 0, 0)
+		if value > max {
+			max = value
+			idx = i
 		}
 	}
+	return idx
+}
 
-	// Простейшая цель (one-hot, класс 3)
-	Y := tensor.NewTensor(tensor.TensorSize{Depth: 10, Height: 1, Width: 1})
-	Y.SetValue(3, 0, 0, 1.0)
+func shuffle(slice []parser.Sample) {
+	for i := range slice {
+		j := rand.Intn(len(slice))
+		slice[i], slice[j] = slice[j], slice[i]
+	}
+}
 
-	// Forward
-	out := net.Forward(X)
-	loss, dLoss := mseLoss(out, Y)
-	fmt.Println("Loss:", loss)
+func prepareData(data [][]float64) {
+	for _, ex := range data {
+		input := ex[1:]
+		for j := range input {
+			input[j] = input[j] / 255
+		}
+	}
+}
 
-	// Backward
-	net.Backward(dLoss)
+func countAccuracy(data []parser.Sample, model nn.LeNet5) float64 {
+	correctCount := 0
+	for _, ex := range data {
+		out := model.Forward(ex.Input)
+		ans := maxIndex(out)
+		if ans == ex.Answer {
+			correctCount++
+		}
+	}
+	return float64(correctCount) / 10000 * 100
+}
 
-	// Update
-	net.UpdateWeights(0.01)
+func main() {
+	fmt.Println("Parsing...")
+	strs, _ := parser.ReadCSV("mnist_train.csv")
+	train := parser.ParseLines(strs)
+	strs, _ = parser.ReadCSV("mnist_test.csv")
+	test := parser.ParseLines(strs)
+
+	fmt.Println("Train...")
+	net := nn.NewLeNet5(tensor.TensorSize{Depth: 1, Height: 28, Width: 28})
+	accuracy := 0.0
+	targetAccuracy := 95.0
+	for j := 0; accuracy <= targetAccuracy; j++ {
+		shuffle(train)
+		for i, ex := range train {
+			out := net.Forward(ex.Input)
+			_, dLoss := mseLoss(out, ex.Target)
+			net.Backward(dLoss)
+			net.UpdateWeights(0.1)
+			if i%10000 == 0 {
+				accuracy = countAccuracy(test, net)
+				fmt.Println("Iteration:", i+j*60000, "Accuracy:", accuracy, "%")
+				if accuracy >= targetAccuracy {
+					break
+				}
+			}
+		}
+	}
 }
