@@ -20,7 +20,7 @@ const (
 
 type FullyConnectedLayer struct {
 	inputSize      tensor.TensorSize
-	outputSize     tensor.TensorSize
+	OutputSize     tensor.TensorSize
 	inputs         int
 	outputs        int
 	activationType ActivationType
@@ -51,7 +51,7 @@ func NewFullyConnectedLayer(size tensor.TensorSize, outputs int, activationType 
 			Depth:  outputs,
 		}),
 		inputSize: size,
-		outputSize: tensor.TensorSize{
+		OutputSize: tensor.TensorSize{
 			Width:  1,
 			Height: 1,
 			Depth:  outputs,
@@ -80,7 +80,7 @@ func (l *FullyConnectedLayer) Activate(output *tensor.Tensor) {
 }
 
 func (l *FullyConnectedLayer) Forward(X tensor.Tensor) tensor.Tensor {
-	output := tensor.NewTensor(l.outputSize)
+	output := tensor.NewTensor(l.OutputSize)
 
 	for i := 0; i < l.outputs; i++ {
 		sum := l.b[i]

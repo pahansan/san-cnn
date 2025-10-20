@@ -13,11 +13,11 @@ type ConvLayer struct {
 	B          []float64
 	DW         []tensor.Tensor
 	DB         []float64
-	P          int
-	S          int
-	Fc         int
-	Fs         int
-	Fd         int
+	P          int // Дополнение нулями
+	S          int // Шаг свёртки
+	Fc         int // Количетсво фильтров
+	Fs         int // Размер фильтров
+	Fd         int // Глубина фильтров
 }
 
 func (l *ConvLayer) InitWeightsRand() {
@@ -34,6 +34,11 @@ func (l *ConvLayer) InitWeightsRand() {
 	}
 }
 
+// size - Размер входа,
+// fc - Количетсво фильтров,
+// fs - Размер фильтров,
+// p - Дополнение нулями,
+// s - Шаг свёртки
 func NewConvLayer(size tensor.TensorSize, fc, fs, p, s int) ConvLayer {
 	newLayer := ConvLayer{
 		InputSize: size,
