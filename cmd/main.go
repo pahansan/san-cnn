@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"time"
 )
 
 type Tensor struct {
@@ -620,6 +621,7 @@ func main() {
 	saveInterval := 5 // Сохранять каждые 5 эпох
 
 	for epoch := range epochTotal {
+		startTime := time.Now()
 		shuffle(trainImages, trainLabels)
 
 		for i := range trainImages {
@@ -639,22 +641,20 @@ func main() {
 		}
 		accuracy = validate(validationImages, validationLabels, net)
 		avgLoss, _ := countAvgLoss(net, trainImages, trainLabels, 100)
-		logStr := fmt.Sprintf("Epoch: [%d/%d], Loss: %.4f, ValAcc: %.2f%%\n",
-			epoch+1, epochTotal, avgLoss, accuracy)
+		logStr := fmt.Sprintf("Epoch: [%d/%d], Loss: %.4f, ValAcc: %.2f%%, Time: %.2f s\n",
+			epoch+1, epochTotal, avgLoss, accuracy, time.Since(startTime).Seconds())
 		fmt.Print(logStr)
 		logFile.WriteString(logStr)
 
 		// ==================== НОВОЕ: Сохранение модели каждые 5 эпох ====================
-		if epoch > 0 && epoch%saveInterval == 0 {
-			filename := fmt.Sprintf("model_epoch_%d.txt", epoch)
+		if epoch > 0 && (epoch+1)%saveInterval == 0 {
+			filename := fmt.Sprintf("model_epoch_%d.txt", epoch+1)
 			if err := SaveModel(net, filename); err != nil {
 				fmt.Printf("Warning: failed to save %s: %v\n", filename, err)
 			} else {
 				fmt.Printf("Checkpoint saved: %s\n", filename)
 			}
 		}
-
-		epoch++
 	}
 
 	fmt.Println("Training complete. Target accuracy reached.")
