@@ -55,7 +55,6 @@ func NewParam(n int) *Param {
 	return p
 }
 
-// ==================== Dropout Layer (НОВЫЙ) ====================
 type Dropout struct {
 	Rate      float64
 	mask      []float64
@@ -92,7 +91,6 @@ func (d *Dropout) Forward(input *Tensor) (*Tensor, error) {
 			}
 		}
 	} else {
-		// Во время инференса нет дропаута, но масштабируем (1-rate)
 		copy(out.Data, input.Data)
 	}
 	return out, nil
@@ -441,7 +439,6 @@ func (s *Sequential) Params() []*Param {
 	return ps
 }
 
-// НОВЫЙ: Метод для установки режима обучения/инференса
 func (s *Sequential) SetTraining(training bool) {
 	for _, l := range s.Layers {
 		if dropout, ok := l.(*Dropout); ok {
@@ -460,7 +457,6 @@ func (opt *SGD) Step(params []*Param) {
 	}
 }
 
-// НОВЫЙ: LeNet5 с Dropout слоями
 func NewLeNet5(dropoutRate float64) *Sequential {
 	c1 := NewConv2D(1, 6, 5)
 	r1 := NewReLU()
@@ -471,15 +467,14 @@ func NewLeNet5(dropoutRate float64) *Sequential {
 	f := NewFlatten()
 	fc5 := NewDense(16*5*5, 120)
 	r5 := NewReLU()
-	dropout5 := NewDropout(dropoutRate) // Dropout после fc5
+	dropout5 := NewDropout(dropoutRate)
 	fc6 := NewDense(120, 84)
 	r6 := NewReLU()
-	dropout6 := NewDropout(dropoutRate) // Dropout после fc6
+	dropout6 := NewDropout(dropoutRate)
 	out := NewDense(84, 10)
 	return NewSequential(c1, r1, p2, c3, r3, p4, f, fc5, r5, dropout5, fc6, r6, dropout6, out)
 }
 
-// НОВЫЙ: Функция сохранения модели
 func SaveModel(model *Sequential, filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -536,7 +531,6 @@ func LoadCSVImages(path string) (images []*Tensor, labels []int, err error) {
 	return images, labels, nil
 }
 
-// ИЗМЕНЕНО: Используем валидационную выборку
 func validate(data []*Tensor, ans []int, model *Sequential) float64 {
 	model.SetTraining(false)
 	defer model.SetTraining(true)
@@ -596,8 +590,7 @@ func main() {
 		panic(err)
 	}
 
-	// ==================== НОВОЕ: Разделение на train/validation ====================
-	validationRatio := 0.2 // 20% на валидацию
+	validationRatio := 0.2
 	validationSize := int(float64(len(trainImages)) * validationRatio)
 	validationImages := trainImages[:validationSize]
 	validationLabels := trainLabels[:validationSize]
@@ -607,8 +600,7 @@ func main() {
 	fmt.Printf("Train: %d, Val: %d, Test: %d\n",
 		len(trainImages), len(validationImages), len(testImages))
 
-	// ==================== НОВОЕ: Инициализация сети с Dropout ====================
-	dropoutRate := 0.5 // Вероятность отключения нейрона 50%
+	dropoutRate := 0.5
 	net := NewLeNet5(dropoutRate)
 	opt := &SGD{LR: 0.01}
 	accuracy := 0.0
@@ -618,7 +610,7 @@ func main() {
 	defer logFile.Close()
 
 	fmt.Println("Training...")
-	saveInterval := 5 // Сохранять каждые 5 эпох
+	saveInterval := 5
 
 	for epoch := range epochTotal {
 		startTime := time.Now()
@@ -646,7 +638,6 @@ func main() {
 		fmt.Print(logStr)
 		logFile.WriteString(logStr)
 
-		// ==================== НОВОЕ: Сохранение модели каждые 5 эпох ====================
 		if epoch > 0 && (epoch+1)%saveInterval == 0 {
 			filename := fmt.Sprintf("model_epoch_%d.txt", epoch+1)
 			if err := SaveModel(net, filename); err != nil {
@@ -659,12 +650,10 @@ func main() {
 
 	fmt.Println("Training complete. Target accuracy reached.")
 
-	// ==================== НОВОЕ: Финальная оценка на тестовой выборке ====================
 	testAccuracy := validate(testImages, testLabels, net)
 	fmt.Printf("Final Test Accuracy: %.2f%%\n", testAccuracy)
 	logFile.WriteString(fmt.Sprintf("Final Test Accuracy: %.2f%%\n", testAccuracy))
 
-	// Сохранение финальной модели
 	SaveModel(net, "model_final.txt")
 	fmt.Println("Final model saved: model_final.txt")
 }
