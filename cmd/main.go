@@ -54,6 +54,63 @@ func NewParam(n int) *Param {
 	return p
 }
 
+// ==================== Dropout Layer (НОВЫЙ) ====================
+type Dropout struct {
+	Rate      float64
+	mask      []float64
+	training  bool
+	lastShape [3]int
+}
+
+func NewDropout(rate float64) *Dropout {
+	if rate < 0 || rate >= 1 {
+		panic("dropout rate must be in [0, 1)")
+	}
+	return &Dropout{Rate: rate, training: true}
+}
+
+func (d *Dropout) SetTraining(training bool) {
+	d.training = training
+}
+
+func (d *Dropout) Forward(input *Tensor) (*Tensor, error) {
+	d.lastShape = [3]int{input.C, input.H, input.W}
+	n := len(input.Data)
+	out := NewTensor(input.C, input.H, input.W)
+
+	if d.training {
+		d.mask = make([]float64, n)
+		scale := 1.0 / (1.0 - d.Rate)
+		for i := range input.Data {
+			if rand.Float64() > d.Rate {
+				d.mask[i] = scale
+				out.Data[i] = input.Data[i] * scale
+			} else {
+				d.mask[i] = 0.0
+				out.Data[i] = 0.0
+			}
+		}
+	} else {
+		// Во время инференса нет дропаута, но масштабируем (1-rate)
+		copy(out.Data, input.Data)
+	}
+	return out, nil
+}
+
+func (d *Dropout) Backward(dout *Tensor) (*Tensor, error) {
+	dx := NewTensor(d.lastShape[0], d.lastShape[1], d.lastShape[2])
+	if d.training && d.mask != nil {
+		for i := range dout.Data {
+			dx.Data[i] = dout.Data[i] * d.mask[i]
+		}
+	} else {
+		copy(dx.Data, dout.Data)
+	}
+	return dx, nil
+}
+
+func (d *Dropout) Params() []*Param { return nil }
+
 type Conv2D struct {
 	InC, OutC, K int
 	W            *Param
@@ -383,6 +440,15 @@ func (s *Sequential) Params() []*Param {
 	return ps
 }
 
+// НОВЫЙ: Метод для установки режима обучения/инференса
+func (s *Sequential) SetTraining(training bool) {
+	for _, l := range s.Layers {
+		if dropout, ok := l.(*Dropout); ok {
+			dropout.SetTraining(training)
+		}
+	}
+}
+
 type SGD struct{ LR float64 }
 
 func (opt *SGD) Step(params []*Param) {
@@ -393,7 +459,8 @@ func (opt *SGD) Step(params []*Param) {
 	}
 }
 
-func NewLeNet5() *Sequential {
+// НОВЫЙ: LeNet5 с Dropout слоями
+func NewLeNet5(dropoutRate float64) *Sequential {
 	c1 := NewConv2D(1, 6, 5)
 	r1 := NewReLU()
 	p2 := NewAvgPool2()
@@ -403,10 +470,32 @@ func NewLeNet5() *Sequential {
 	f := NewFlatten()
 	fc5 := NewDense(16*5*5, 120)
 	r5 := NewReLU()
+	dropout5 := NewDropout(dropoutRate) // Dropout после fc5
 	fc6 := NewDense(120, 84)
 	r6 := NewReLU()
+	dropout6 := NewDropout(dropoutRate) // Dropout после fc6
 	out := NewDense(84, 10)
-	return NewSequential(c1, r1, p2, c3, r3, p4, f, fc5, r5, fc6, r6, out)
+	return NewSequential(c1, r1, p2, c3, r3, p4, f, fc5, r5, dropout5, fc6, r6, dropout6, out)
+}
+
+// НОВЫЙ: Функция сохранения модели
+func SaveModel(model *Sequential, filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	params := model.Params()
+	for _, p := range params {
+		for _, val := range p.Val {
+			_, err := file.WriteString(fmt.Sprintf("%.15f\n", val))
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func LoadCSVImages(path string) (images []*Tensor, labels []int, err error) {
@@ -419,9 +508,6 @@ func LoadCSVImages(path string) (images []*Tensor, labels []int, err error) {
 	for {
 		rec, err := r.Read()
 		if err != nil {
-			if errors.Is(err, os.ErrClosed) {
-				break
-			}
 			break
 		}
 		if len(rec) < 2 {
@@ -449,7 +535,11 @@ func LoadCSVImages(path string) (images []*Tensor, labels []int, err error) {
 	return images, labels, nil
 }
 
+// ИЗМЕНЕНО: Используем валидационную выборку
 func validate(data []*Tensor, ans []int, model *Sequential) float64 {
+	model.SetTraining(false)
+	defer model.SetTraining(true)
+
 	correct := 0
 	for i := range data {
 		out, _ := model.Forward(data[i])
@@ -476,6 +566,23 @@ func shuffle(data []*Tensor, ans []int) {
 	}
 }
 
+func countAvgLoss(net *Sequential, trainImages []*Tensor, trainLabels []int, n int) (float64, error) {
+	if n > len(trainLabels) {
+		return 0.0, fmt.Errorf("n is bigger than trainLabels size")
+	}
+	avgLoss := 0.0
+	for range n {
+		i := rand.Intn(len(trainImages))
+		out, err := net.Forward(trainImages[i])
+		if err != nil {
+			return 0.0, err
+		}
+		loss, _, _ := SoftmaxCrossEntropyLoss(out, trainLabels[i])
+		avgLoss += loss
+	}
+	return avgLoss / float64(n), nil
+}
+
 func main() {
 	fmt.Println("Loading MNIST train data...")
 	trainImages, trainLabels, err := LoadCSVImages("mnist_train.csv")
@@ -488,19 +595,31 @@ func main() {
 		panic(err)
 	}
 
-	net := NewLeNet5()
+	// ==================== НОВОЕ: Разделение на train/validation ====================
+	validationRatio := 0.2 // 20% на валидацию
+	validationSize := int(float64(len(trainImages)) * validationRatio)
+	validationImages := trainImages[:validationSize]
+	validationLabels := trainLabels[:validationSize]
+	trainImages = trainImages[validationSize:]
+	trainLabels = trainLabels[validationSize:]
+
+	fmt.Printf("Train: %d, Val: %d, Test: %d\n",
+		len(trainImages), len(validationImages), len(testImages))
+
+	// ==================== НОВОЕ: Инициализация сети с Dropout ====================
+	dropoutRate := 0.5 // Вероятность отключения нейрона 50%
+	net := NewLeNet5(dropoutRate)
 	opt := &SGD{LR: 0.01}
-	targetAcc := 90.0
 	accuracy := 0.0
-	epoch := 0
+	epochTotal := 20
 
-	file, _ := os.Create("data.txt")
-	defer file.Close()
+	logFile, _ := os.Create("training_log.txt")
+	defer logFile.Close()
 
-	fmt.Println("Train...")
-	avgLoss := 0.0
-	nSteps := 100
-	for accuracy < targetAcc {
+	fmt.Println("Training...")
+	saveInterval := 5 // Сохранять каждые 5 эпох
+
+	for epoch := range epochTotal {
 		shuffle(trainImages, trainLabels)
 
 		for i := range trainImages {
@@ -509,25 +628,43 @@ func main() {
 				panic(err)
 			}
 
-			loss, dlogits, _ := SoftmaxCrossEntropyLoss(out, trainLabels[i])
-			avgLoss += loss
+			_, dlogits, _ := SoftmaxCrossEntropyLoss(out, trainLabels[i])
+
 			err = net.Backward(dlogits)
 			if err != nil {
 				panic(err)
 			}
 
 			opt.Step(net.Params())
-			if i%nSteps == 0 {
-				accuracy = validate(testImages, testLabels, net)
-				fmt.Printf("Iteration: %d Cost: %f Accuracy: %.2f %%\n", i+epoch*60000, avgLoss/float64(nSteps), accuracy)
-				file.Write([]byte(fmt.Sprintf("%d %1.15f %.2f\n", i+epoch*60000, avgLoss/float64(nSteps), accuracy)))
-				avgLoss = 0
-				if accuracy >= targetAcc {
-					break
-				}
+		}
+		accuracy = validate(validationImages, validationLabels, net)
+		avgLoss, _ := countAvgLoss(net, trainImages, trainLabels, 100)
+		logStr := fmt.Sprintf("Epoch: [%d/%d], Loss: %.4f, ValAcc: %.2f%%\n",
+			epoch+1, epochTotal, avgLoss, accuracy)
+		fmt.Print(logStr)
+		logFile.WriteString(logStr)
+
+		// ==================== НОВОЕ: Сохранение модели каждые 5 эпох ====================
+		if epoch > 0 && epoch%saveInterval == 0 {
+			filename := fmt.Sprintf("model_epoch_%d.txt", epoch)
+			if err := SaveModel(net, filename); err != nil {
+				fmt.Printf("Warning: failed to save %s: %v\n", filename, err)
+			} else {
+				fmt.Printf("Checkpoint saved: %s\n", filename)
 			}
 		}
+
 		epoch++
 	}
+
 	fmt.Println("Training complete. Target accuracy reached.")
+
+	// ==================== НОВОЕ: Финальная оценка на тестовой выборке ====================
+	testAccuracy := validate(testImages, testLabels, net)
+	fmt.Printf("Final Test Accuracy: %.2f%%\n", testAccuracy)
+	logFile.WriteString(fmt.Sprintf("Final Test Accuracy: %.2f%%\n", testAccuracy))
+
+	// Сохранение финальной модели
+	SaveModel(net, "model_final.txt")
+	fmt.Println("Final model saved: model_final.txt")
 }
